@@ -8,17 +8,19 @@ from dotenv import load_dotenv
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
 from aiogram.utils import executor
-from constants import ROBOFACE
+from constants import ROBOFACE, API_URL
 import requests
 
 logger = logging.getLogger(__name__)
 load_dotenv()
 
 BOT_TOKEN = os.getenv('token')
-OPEN_WEATHER_TOKEN = os.getenv('open_weather_token')
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
+login = os.getenv('admin_login')
+password = os.getenv('admin_password')
+bot_authorization = requests.get()
 
 
 @dp.message_handler(commands='start')
@@ -27,24 +29,35 @@ async def get_greetings(message: types.Message):
     me = await bot.get_me()
     await message.reply(f'{ROBOFACE} Привет, {message.from_user.full_name}, '
                         f'меня зовут {me.full_name}, '
-                        f'я тут придумаю что надо писать')  # проработать!
+                        f'Зарегистрируйся и я смогу напоминать тебе '
+                        f'о различных собитиях! =)')
 
 
 def check_tokens() -> bool:
     """проверяем доступность переменных окружения."""
-    return all([BOT_TOKEN, OPEN_WEATHER_TOKEN])
+    return all([BOT_TOKEN])
+
+
+def register_user(login, password):
+    username = (
+        login.from_user.username if login.from_user.username else None
+    )
+    password = (
+        password.from_user.username if password.from_user.username else None
+    )
+    return requests.post()
 
 
 @dp.message_handler(commands='register')
-def register_user():
-    pass
+async def send_register_information(message: types.Message):
+    await message.reply(f'response: {requests.get(API_URL)}')
 
 
-@dp.message_handler(commands='add new people')
-def add_new_people(message: types.Message):
-    if message.from_user.full_name in database:
-        requests.post('my.own.api', json={'name': 'annd',
-                                          'last_name': 'pervuhina'})
+# @dp.message_handler(commands='add new people')
+# def add_new_people(message: types.Message):
+#     if message.from_user.full_name in database:
+#         requests.post('my.own.api', json={'name': 'annd',
+#                                           'last_name': 'pervuhina'})
 
 
 if __name__ == '__main__':
