@@ -3,13 +3,15 @@
 import logging
 import os
 import sys
-from dotenv import load_dotenv
+from datetime import datetime
 
+import requests
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
 from aiogram.utils import executor
+from dotenv import load_dotenv
+
 from constants import ROBOFACE, API_URL
-import requests
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -20,7 +22,30 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 login = os.getenv('admin_login')
 password = os.getenv('admin_password')
-bot_authorization = requests.get()
+
+
+def bot_api_authorization():
+    data = {'username': login, 'password': password}
+    url = f'{API_URL}jwt/create/'
+    response = requests.post(url=url, data=data).json()
+    access_key = response['access']
+    start = datetime.now()
+    return access_key, start
+
+
+bot_access_key, start_date_key = bot_api_authorization()
+
+
+def check_authorization_key(start=start_date_key):
+    now = datetime.now()
+    different = now - start
+    if different.seconds >= 86400:
+        return False
+    bot_api_authorization()
+    return True
+
+
+
 
 
 @dp.message_handler(commands='start')
@@ -38,25 +63,26 @@ def check_tokens() -> bool:
     return all([BOT_TOKEN])
 
 
-def register_user(login, password):
+def register_user(login, password):  # ne pashet poka
     username = (
         login.from_user.username if login.from_user.username else None
     )
     password = (
         password.from_user.username if password.from_user.username else None
     )
-    return requests.post()
+    return
 
 
 @dp.message_handler(commands='register')
 async def send_register_information(message: types.Message):
-    await message.reply(f'response: {requests.get(API_URL)}')
+    bot_api_authorization()  # убрать вызов
+    await message.reply(f'ключ: {check_authorization_key(start=start_date_key)}')
 
 
 # @dp.message_handler(commands='add new people')
 # def add_new_people(message: types.Message):
 #     if message.from_user.full_name in database:
-#         requests.post('my.own.api', json={'name': 'annd',
+#         requests.post('my.own.api', json={'name': 'anna',
 #                                           'last_name': 'pervuhina'})
 
 
