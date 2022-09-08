@@ -30,7 +30,6 @@ password = os.getenv('ADMIN_PASSWORD')
 
 class RegisterFollower(StatesGroup):
     username = State()
-    password = State()
 
 
 def get_token_and_start_data():
@@ -69,12 +68,13 @@ def check_tokens() -> bool:
 
 
 @dp.message_handler(commands='register')
-async def send_register_information(message: types.Message):
-    RegisterFollower.username = message.from_user.username
-    await RegisterFollower.password.set()
+async def register_follower(message: types.Message):
+    """Функция реакции на команду /register."""
+    # RegisterFollower.username = message.from_user.username
+    await RegisterFollower.username.set()
     await message.reply(
-        'Давай зарегистрируемся!\nВведите ваш пароль'
-        '\nДля отмены напиши: "/cancel"')
+        'Желаете зарегистрироваться?\nДля отмены напиши: "/cancel"')
+    reply_
 
 
 @dp.message_handler(state='*', commands='cancel')
@@ -102,12 +102,6 @@ async def process_password(message: types.Message, state=FSMContext):
 async def send_register_information(message: types.Message):
     await message.reply(f'логин: {RegisterFollower.username}, '
                         f'пароль: {RegisterFollower.password}')
-
-# @dp.message_handler(commands='add new people')
-# def add_new_people(message: types.Message):
-#     if message.from_user.full_name in database:
-#         requests.post('my.own.api', json={'name': 'anna',
-#                                           'last_name': 'pervuhina'})
 
 
 if __name__ == '__main__':
