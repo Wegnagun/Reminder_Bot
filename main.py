@@ -4,17 +4,20 @@ import logging
 import os
 import sys
 from datetime import datetime
+from typing import List
 
 import requests
 from aiogram import Bot, types
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import Dispatcher, FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import StatesGroup, State
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
+from api_requests import ask_api
+from config import EMODJI_DICTIONARY
 from constants import ROBOFACE, API_URL
 
 logger = logging.getLogger(__name__)
@@ -27,6 +30,61 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot, storage=storage)
 login = os.getenv('ADMIN_LOGIN')
 password = os.getenv('ADMIN_PASSWORD')
+OPEN_WEATHER_TOKEN = os.getenv('OPEN_WEATHER_TOKEN')
+BOTS_COMMAND = ['/start', '/weather', '/register', '/help']
+
+
+@dp.message_handler(lambda message: message.text not in BOTS_COMMAND)
+async def unknown_command(message: types.Message):
+    await message.reply('Я не знаю такую команду(\n'
+                        'напиши /help чтобы узнать, что я умею =)')
+
+
+class KnowWeather(StatesGroup):
+    start = State()
+    city = State()
+
+
+@dp.message_handler(commands='weather')
+async def know_weather(message: types.Message):
+    """Функция реакции на команду /register."""
+    await KnowWeather.start.set()
+    await message.reply('Решили узнать погоду?\n'
+                        'Напишите название города\n'
+                        'Для отмены напиши: "/cancel"')
+    await KnowWeather.next()
+
+
+@dp.message_handler(state=KnowWeather.city)
+async def get_weather(message: KnowWeather.city, state: FSMContext):
+    """Функция реакции на команду /weather."""
+    response = ask_api(message.text, OPEN_WEATHER_TOKEN)
+    if 'error' in response:
+        logger.error(f'Ошибка! {response["error"]}')
+        await message.reply(response['message'])
+    logger.info(f'статус ответа api {response["code"]}')
+    city = response['message']['name']
+    temperature = response['message']['main']['temp']
+    humidity = response['message']['main']['humidity']
+    pressure = response['message']['main']['pressure']
+    wind_speeed = response['message']['wind']["speed"]
+    weather_description = response['message']['weather'][0]['main']
+    if weather_description in EMODJI_DICTIONARY:
+        emodji = f'За окном: {EMODJI_DICTIONARY[weather_description]}'
+    else:
+        emodji = 'Посмотри в окно, черт знает, что там происходит...'
+    await message.reply(
+        f"#####################\n"
+        f"По состоянию на "
+        f"{datetime.now().strftime('[%Y-%m-%d] [%H:%M]')}\n"
+        f'Погода в городе {city}:\nТемпература: {temperature} С°\n'
+        f'{emodji}\n'
+        f'Влажность: {humidity}\nДавление: {pressure} '
+        f'мм.рт.ст.\nСкорость ветра: {wind_speeed} м/с\n'
+        f'### Хорошего дня! ###\n'
+        f"#####################"
+    )
+    await state.finish()
 
 
 class RegisterFollower(StatesGroup):
@@ -34,7 +92,7 @@ class RegisterFollower(StatesGroup):
     username = State()
 
 
-def make_row_keyboard(items: list[str]) -> ReplyKeyboardMarkup:
+def make_row_keyboard(items: List[str]) -> ReplyKeyboardMarkup:
     row = [KeyboardButton(text=item) for item in items]
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
 
@@ -75,33 +133,13 @@ async def get_greetings(message: types.Message):
                         f'о различных собитиях! =)')
 
 
-@dp.message_handler(commands='register')
-async def register_follower(message: types.Message):
-    """Функция реакции на команду /register."""
-    await RegisterFollower.register_will.set()
-    await message.reply(
-        text='Желаете зарегистрироваться?\nДля отмены напиши: "/cancel"',
-        reply_markup=make_row_keyboard(['Да', 'Нет'])
-    )
-
-
-@dp.message_handler(state='register_will')
-async def incorrect_answer(message: types.Message):
-    """обработка неправильного ответа на согласие на регистрацию."""
-    await message.answer(
-        text="Выберите или напишите: 'Да' или 'Нет'",
-        reply_markup=make_row_keyboard(['Да', 'Нет'])
-    )
-
-
-@dp.message_handler(state='username')
-async def process_name(message: types.Message, state: FSMContext):
-    """Функция запись имени после согласия на регистрацию."""
-    RegisterFollower.username = message.from_user.username
-    await message.reply(
-        f'Поздравляю, {RegisterFollower.username} вы зарегистрированы!'
-    )
-    await state.finish()
+@dp.message_handler(commands='help')
+async def give_help(message: types.Message):
+    """Функция реакции на команду /help."""
+    me = await bot.get_me()
+    await message.reply(f'Значится так, я умею в следующие команды:\n'
+                        f'/register - зарегистрироваться для уведомлений\n'
+                        f'/weather - узнать погоду')
 
 
 @dp.message_handler(state='*', commands='cancel')
@@ -116,13 +154,32 @@ async def cancel_handler(message: types.Message, state: FSMContext):
     await message.reply('Отменено!', reply_markup=types.ReplyKeyboardRemove())
 
 
-# @dp.message_handler(state=RegisterFollower.password)
-# async def process_password(message: types.Message, state=FSMContext):
-#     async with state.proxy() as data:
-#         data['password'] = message.text
-#     RegisterFollower.password = data['password']
-#
-#     await state.finish()
+@dp.message_handler(commands='register')
+async def register_follower(message: types.Message):
+    """Функция реакции на команду /register."""
+    await RegisterFollower.register_will.set()
+    await message.reply(
+        text='Желаете зарегистрироваться?\nДля отмены напиши: "/cancel"',
+        reply_markup=make_row_keyboard(['Да', 'Нет'])
+    )
+
+
+@dp.message_handler(state=RegisterFollower.register_will)
+async def process_name(message: types.Message, state: FSMContext):
+    """Функция записи имени после согласия на регистрацию."""
+    markup = types.ReplyKeyboardRemove()
+    if message.text == 'Да':
+        RegisterFollower.username = message.from_user.username
+        await message.reply(
+            f'Поздравляю, {RegisterFollower.username} вы зарегистрированы!',
+            reply_markup=markup
+        )
+        await state.finish()
+    else:
+        await message.reply(
+            'Я, Вас, понял, ну штош\nнапишите /help, чтобы узнать чем я еще '
+            'могу помочь)', reply_markup=markup)
+        await state.finish()
 
 
 @dp.message_handler(commands='test')
