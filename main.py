@@ -13,6 +13,7 @@ from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
 from dotenv import load_dotenv
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 from constants import ROBOFACE, API_URL
 
@@ -29,7 +30,13 @@ password = os.getenv('ADMIN_PASSWORD')
 
 
 class RegisterFollower(StatesGroup):
+    register_will = State()
     username = State()
+
+
+def make_row_keyboard(items: list[str]) -> ReplyKeyboardMarkup:
+    row = [KeyboardButton(text=item) for item in items]
+    return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
 
 
 def get_token_and_start_data():
@@ -44,7 +51,13 @@ def get_token_and_start_data():
 bot_access_key, start_date_key = get_token_and_start_data()
 
 
+def check_tokens() -> bool:
+    """проверяем доступность переменных окружения."""
+    return all([BOT_TOKEN])
+
+
 def check_authorization_key(start=start_date_key):
+    """проверяем действущий ли еще токен авторизации."""
     now = datetime.now()
     different = now - start
     if different.seconds >= 86400:
@@ -62,19 +75,33 @@ async def get_greetings(message: types.Message):
                         f'о различных собитиях! =)')
 
 
-def check_tokens() -> bool:
-    """проверяем доступность переменных окружения."""
-    return all([BOT_TOKEN])
-
-
 @dp.message_handler(commands='register')
 async def register_follower(message: types.Message):
     """Функция реакции на команду /register."""
-    # RegisterFollower.username = message.from_user.username
-    await RegisterFollower.username.set()
+    await RegisterFollower.register_will.set()
     await message.reply(
-        'Желаете зарегистрироваться?\nДля отмены напиши: "/cancel"')
-    reply_
+        text='Желаете зарегистрироваться?\nДля отмены напиши: "/cancel"',
+        reply_markup=make_row_keyboard(['Да', 'Нет'])
+    )
+
+
+@dp.message_handler(state='register_will')
+async def incorrect_answer(message: types.Message):
+    """обработка неправильного ответа на согласие на регистрацию."""
+    await message.answer(
+        text="Выберите или напишите: 'Да' или 'Нет'",
+        reply_markup=make_row_keyboard(['Да', 'Нет'])
+    )
+
+
+@dp.message_handler(state='username')
+async def process_name(message: types.Message, state: FSMContext):
+    """Функция запись имени после согласия на регистрацию."""
+    RegisterFollower.username = message.from_user.username
+    await message.reply(
+        f'Поздравляю, {RegisterFollower.username} вы зарегистрированы!'
+    )
+    await state.finish()
 
 
 @dp.message_handler(state='*', commands='cancel')
@@ -89,19 +116,18 @@ async def cancel_handler(message: types.Message, state: FSMContext):
     await message.reply('Отменено!', reply_markup=types.ReplyKeyboardRemove())
 
 
-@dp.message_handler(state=RegisterFollower.password)
-async def process_password(message: types.Message, state=FSMContext):
-    async with state.proxy() as data:
-        data['password'] = message.text
-    RegisterFollower.password = data['password']
-
-    await state.finish()
+# @dp.message_handler(state=RegisterFollower.password)
+# async def process_password(message: types.Message, state=FSMContext):
+#     async with state.proxy() as data:
+#         data['password'] = message.text
+#     RegisterFollower.password = data['password']
+#
+#     await state.finish()
 
 
 @dp.message_handler(commands='test')
 async def send_register_information(message: types.Message):
-    await message.reply(f'логин: {RegisterFollower.username}, '
-                        f'пароль: {RegisterFollower.password}')
+    await message.reply(f'логин: {RegisterFollower.username}')
 
 
 if __name__ == '__main__':
