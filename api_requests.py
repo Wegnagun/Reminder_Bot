@@ -1,5 +1,7 @@
 import requests
 
+from constants import API_URL
+
 
 def ask_api(text, opt):
     try:
@@ -13,3 +15,8 @@ def ask_api(text, opt):
         return message
     else:
         return answer
+
+
+def register_follower():
+    url = f'{API_URL}users/'
+    response = requests.post(url=url, data=data).json()

@@ -16,7 +16,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 
-from api_requests import ask_api
+from api_requests import ask_api, register_follower
 from config import EMODJI_DICTIONARY
 from constants import ROBOFACE, API_URL
 
@@ -170,6 +170,11 @@ async def process_name(message: types.Message, state: FSMContext):
     markup = types.ReplyKeyboardRemove()
     if message.text == 'Да':
         RegisterFollower.username = message.from_user.username
+        data = {'username': login, 'password': password}
+        try:
+            register_follower()
+        except Exception:
+            await message.reply(f'{Exception}')
         await message.reply(
             f'Поздравляю, {RegisterFollower.username} вы зарегистрированы!',
             reply_markup=markup
