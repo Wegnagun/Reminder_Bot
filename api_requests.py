@@ -17,6 +17,14 @@ def ask_api(text, opt):
         return answer
 
 
-def register_follower():
-    url = f'{API_URL}users/'
-    response = requests.post(url=url, data=data).json()
+def api_register_follower(username, token):
+    url = f'{API_URL}followers/'
+    headers = {"Authorization": "Bearer " + token}
+    data = {"username": username}
+    response = requests.post(url=url, data=data, headers=headers)
+    answer = {'code': response.status_code, 'message': response.json()}
+    if response.status_code == 400:
+        raise requests.RequestException(
+            'Вы уже зарегистрированы!'
+        )
+    return answer

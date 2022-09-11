@@ -16,7 +16,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 
-from api_requests import ask_api, register_follower
+from api_requests import ask_api, api_register_follower
 from config import EMODJI_DICTIONARY
 from constants import ROBOFACE, API_URL
 
@@ -170,16 +170,28 @@ async def process_name(message: types.Message, state: FSMContext):
     markup = types.ReplyKeyboardRemove()
     if message.text == 'Да':
         RegisterFollower.username = message.from_user.username
-        data = {'username': login, 'password': password}
         try:
-            register_follower()
-        except Exception:
-            await message.reply(f'{Exception}')
-        await message.reply(
-            f'Поздравляю, {RegisterFollower.username} вы зарегистрированы!',
-            reply_markup=markup
-        )
-        await state.finish()
+            response_data = api_register_follower(
+                RegisterFollower.username,
+                bot_access_key
+            )
+            response_message = response_data['message']
+            response_code = response_data['code']
+            await message.reply(
+                f' {response_code}, {response_message}',
+                reply_markup=types.ReplyKeyboardRemove()
+            )
+        except Exception as ex:
+            await message.reply(
+                f'не пошло: {ex}', reply_markup=markup)
+            await state.finish()
+        else:
+            await message.reply(
+                f'Поздравляю, {RegisterFollower.username} '
+                f'вы зарегистрированы!',
+                reply_markup=types.ReplyKeyboardRemove()
+            )
+            await state.finish()
     else:
         await message.reply(
             'Я, Вас, понял, ну штош\nнапишите /help, чтобы узнать чем я еще '
@@ -208,5 +220,5 @@ if __name__ == '__main__':
     if not check_tokens():
         logger.critical('Ошибка, проверьте токены в config.py')
         sys.exit('Ошибка, проверьте токены в config.py')
-    executor.start_polling(dp, skip_updates=True)
     get_token_and_start_data()
+    executor.start_polling(dp, skip_updates=True)
