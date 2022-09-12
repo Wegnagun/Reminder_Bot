@@ -16,9 +16,9 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 
-from api_requests import ask_api, api_register_follower
+from api_requests import ask_api, api_register_follower, api_unfollow
 from config import EMODJI_DICTIONARY
-from constants import ROBOFACE, API_URL
+from constants import ROBOFACE, API_URL, CRYFACE
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -31,7 +31,7 @@ dp = Dispatcher(bot, storage=storage)
 login = os.getenv('ADMIN_LOGIN')
 password = os.getenv('ADMIN_PASSWORD')
 OPEN_WEATHER_TOKEN = os.getenv('OPEN_WEATHER_TOKEN')
-BOTS_COMMAND = ['/start', '/weather', '/register', '/help']
+BOTS_COMMAND = ['/start', '/weather', '/follow', '/unfollow', '/help']
 
 
 @dp.message_handler(lambda message: message.text not in BOTS_COMMAND)
@@ -45,9 +45,14 @@ class KnowWeather(StatesGroup):
     city = State()
 
 
+class UnFollow(StatesGroup):
+    start = State()
+    answer = State()
+
+
 @dp.message_handler(commands='weather')
 async def know_weather(message: types.Message):
-    """Функция реакции на команду /register."""
+    """Функция реакции на команду /wegather."""
     await KnowWeather.start.set()
     await message.reply('Решили узнать погоду?\n'
                         'Напишите название города\n'
@@ -138,7 +143,8 @@ async def give_help(message: types.Message):
     """Функция реакции на команду /help."""
     me = await bot.get_me()
     await message.reply(f'Значится так, я умею в следующие команды:\n'
-                        f'/register - зарегистрироваться для уведомлений\n'
+                        f'/follow - подписаться на уведомления\n'
+                        f'/unfollow - отписаться от уведомлений\n'
                         f'/weather - узнать погоду')
 
 
@@ -154,19 +160,19 @@ async def cancel_handler(message: types.Message, state: FSMContext):
     await message.reply('Отменено!', reply_markup=types.ReplyKeyboardRemove())
 
 
-@dp.message_handler(commands='register')
+@dp.message_handler(commands='follow')
 async def register_follower(message: types.Message):
-    """Функция реакции на команду /register."""
+    """Функция реакции на команду /follow."""
     await RegisterFollower.register_will.set()
     await message.reply(
-        text='Желаете зарегистрироваться?\nДля отмены напиши: "/cancel"',
+        text='Желаете подписаться?\nДля отмены напиши: "/cancel"',
         reply_markup=make_row_keyboard(['Да', 'Нет'])
     )
 
 
 @dp.message_handler(state=RegisterFollower.register_will)
 async def process_name(message: types.Message, state: FSMContext):
-    """Функция записи имени после согласия на регистрацию."""
+    """Функция записи имени после согласия на подписку."""
     markup = types.ReplyKeyboardRemove()
     if message.text == 'Да':
         RegisterFollower.username = message.from_user.username
@@ -188,20 +194,56 @@ async def process_name(message: types.Message, state: FSMContext):
         else:
             await message.reply(
                 f'Поздравляю, {RegisterFollower.username} '
-                f'вы зарегистрированы!',
+                f'вы подписаны на уведомления!',
                 reply_markup=types.ReplyKeyboardRemove()
             )
             await state.finish()
     else:
         await message.reply(
             'Я, Вас, понял, ну штош\nнапишите /help, чтобы узнать чем я еще '
-            'могу помочь)', reply_markup=markup)
+            'могу помочь?)', reply_markup=markup)
         await state.finish()
 
 
-@dp.message_handler(commands='test')
-async def send_register_information(message: types.Message):
-    await message.reply(f'логин: {RegisterFollower.username}')
+@dp.message_handler(commands='unfollow')
+async def register_follower(message: types.Message):
+    """Функция реакции на команду /unfollow."""
+    await UnFollow.start.set()
+    await message.reply(
+        text=f'Хотите отписаться {CRYFACE}?\nДля отмены напиши: "/cancel"',
+        reply_markup=make_row_keyboard(['Да', 'Нет'])
+    )
+
+
+@dp.message_handler(state=UnFollow.start)
+async def process_name(message: types.Message, state: FSMContext):
+    """Функция реакции на ответ по отписке."""
+    markup = types.ReplyKeyboardRemove()
+    if message.text == 'Да':
+        username = message.from_user.username
+        try:
+            response_data = api_unfollow(username, bot_access_key)
+            response_message = response_data['message']
+            response_code = response_data['code']
+            await message.reply(
+                f' {response_code}, {response_message}',
+                reply_markup=types.ReplyKeyboardRemove()
+            )
+        except Exception as ex:
+            await message.reply(
+                f'не пошло: {ex}', reply_markup=markup)
+            await state.finish()
+        else:
+            await message.reply(
+                f'Поздравляю, {RegisterFollower.username} '
+                f'вы отписаны!',
+                reply_markup=types.ReplyKeyboardRemove()
+            )
+            await state.finish()
+    else:
+        await message.reply(
+            'Очень хорошо, что вы передумали!', reply_markup=markup)
+        await state.finish()
 
 
 if __name__ == '__main__':

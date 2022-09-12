@@ -28,3 +28,16 @@ def api_register_follower(username, token):
             'Вы уже зарегистрированы!'
         )
     return answer
+
+
+def api_unfollow(username, token):
+    url = f'{API_URL}followers/'
+    headers = {"Authorization": "Bearer " + token}
+    data = {"username": username}
+    response = requests.delete(url=url, data=data, headers=headers)
+    answer = {'code': response.status_code, 'message': response.json()}
+    # if response.status_code == 400:
+    #     raise requests.RequestException(
+    #         'Вы уже зарегистрированы!'
+    #     )
+    return answer
