@@ -16,7 +16,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 
-from api_requests import ask_api, api_register_follower, api_unfollow
+from api_requests import get_weather, api_register_follower, api_unfollow
 from config import EMODJI_DICTIONARY
 from constants import ROBOFACE, API_URL, CRYFACE
 
@@ -63,7 +63,7 @@ async def know_weather(message: types.Message):
 @dp.message_handler(state=KnowWeather.city)
 async def get_weather(message: KnowWeather.city, state: FSMContext):
     """Функция реакции на команду /weather."""
-    response = ask_api(message.text, OPEN_WEATHER_TOKEN)
+    response = get_weather(message.text, OPEN_WEATHER_TOKEN)
     if 'error' in response:
         logger.error(f'Ошибка! {response["error"]}')
         await message.reply(response['message'])
@@ -161,7 +161,7 @@ async def cancel_handler(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(commands='follow')
-async def register_follower(message: types.Message):
+async def follow(message: types.Message):
     """Функция реакции на команду /follow."""
     await RegisterFollower.register_will.set()
     await message.reply(
@@ -177,17 +177,11 @@ async def process_name(message: types.Message, state: FSMContext):
     if message.text == 'Да':
         RegisterFollower.username = message.from_user.username
         try:
-            response_data = api_register_follower(
+            api_register_follower(
                 RegisterFollower.username,
                 bot_access_key
             )
-            response_message = response_data['message']
-            response_code = response_data['code']
-            await message.reply(
-                f' {response_code}, {response_message}',
-                reply_markup=types.ReplyKeyboardRemove()
-            )
-        except Exception as ex:
+        except requests.RequestException as ex:
             await message.reply(
                 f'не пошло: {ex}', reply_markup=markup)
             await state.finish()
@@ -206,7 +200,7 @@ async def process_name(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(commands='unfollow')
-async def register_follower(message: types.Message):
+async def unfollow(message: types.Message):
     """Функция реакции на команду /unfollow."""
     await UnFollow.start.set()
     await message.reply(
@@ -222,20 +216,14 @@ async def process_name(message: types.Message, state: FSMContext):
     if message.text == 'Да':
         username = message.from_user.username
         try:
-            response_data = api_unfollow(username, bot_access_key)
-            response_message = response_data['message']
-            response_code = response_data['code']
-            await message.reply(
-                f' {response_code}, {response_message}',
-                reply_markup=types.ReplyKeyboardRemove()
-            )
-        except Exception as ex:
+            api_unfollow(username, bot_access_key)
+        except requests.RequestException as ex:
             await message.reply(
                 f'не пошло: {ex}', reply_markup=markup)
             await state.finish()
         else:
             await message.reply(
-                f'Поздравляю, {RegisterFollower.username} '
+                f'Ок, {RegisterFollower.username} '
                 f'вы отписаны!',
                 reply_markup=types.ReplyKeyboardRemove()
             )

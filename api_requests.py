@@ -3,7 +3,7 @@ import requests
 from constants import API_URL
 
 
-def ask_api(text, opt):
+def get_weather(text, opt):
     try:
         response = requests.get(
             f'https://api.openweathermap.org/data/2.5/weather?q={text}'
@@ -31,13 +31,13 @@ def api_register_follower(username, token):
 
 
 def api_unfollow(username, token):
-    url = f'{API_URL}followers/'
+    url = f'{API_URL}followers/{username}'
     headers = {"Authorization": "Bearer " + token}
     data = {"username": username}
-    response = requests.delete(url=url, data=data, headers=headers)
-    answer = {'code': response.status_code, 'message': response.json()}
-    # if response.status_code == 400:
-    #     raise requests.RequestException(
-    #         'Вы уже зарегистрированы!'
-    #     )
+    response = requests.delete(url=url, headers=headers)
+    answer = {'code': response.status_code}
+    if response.status_code == 404:
+        raise requests.RequestException(
+            'Вас нет в подписках!'
+        )
     return answer
