@@ -33,13 +33,20 @@ dp = Dispatcher(bot, storage=storage)
 login = os.getenv('ADMIN_LOGIN')
 password = os.getenv('ADMIN_PASSWORD')
 OPEN_WEATHER_TOKEN = os.getenv('OPEN_WEATHER_TOKEN')
-BOTS_COMMAND = ['/start', '/weather', '/follow', '/unfollow', '/help', '/test']
+BOTS_COMMAND = [
+    '/start', '/weather', '/follow', '/unfollow', '/help', '/add_bd', '/test'
+]
 
 
 @dp.message_handler(lambda message: message.text not in BOTS_COMMAND)
 async def unknown_command(message: types.Message):
     await message.reply('Я не знаю такую команду(\n'
                         'напиши /help чтобы узнать, что я умею =)')
+
+
+class RegisterFollower(StatesGroup):
+    register_will = State()
+    username = State()
 
 
 class KnowWeather(StatesGroup):
@@ -50,6 +57,23 @@ class KnowWeather(StatesGroup):
 class UnFollow(StatesGroup):
     start = State()
     answer = State()
+
+
+class BirthdayRemind(StatesGroup):
+    start = State()
+    name = State()
+    date = State()
+    owner = State()
+
+
+def validate_date(date_text):
+    """Валидатор ввода даты"""
+    try:
+        right_date = datetime.strptime(date_text, '%Y-%m-%d')
+    except ValueError:
+        raise ValueError("Неверный формат даты, необходим: ГГГГ-ММ-ДД")
+    else:
+        return right_date
 
 
 @dp.message_handler(commands='weather')
@@ -94,11 +118,6 @@ async def get_weather(message: KnowWeather.city, state: FSMContext):
     await state.finish()
 
 
-class RegisterFollower(StatesGroup):
-    register_will = State()
-    username = State()
-
-
 def make_row_keyboard(items: List[str]) -> ReplyKeyboardMarkup:
     row = [KeyboardButton(text=item) for item in items]
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
@@ -116,11 +135,15 @@ def get_token_and_start_data():
 bot_access_key, start_date_key = get_token_and_start_data()
 
 
-@dp.message_handler(commands='test')
-async def get_greetings(message: types.Message):
+async def get_id(message: types.Message):
     """Функция реакции на команду /test."""
     response = test_api(bot_access_key)
-    await message.reply(f'{response.json()}')
+    username = message.from_user.username
+    id = None
+    for elem in response.json():
+        if elem.get('username') == username:
+            id = elem.get('id')
+    await message.reply(f'{id}')
 
 
 def check_tokens() -> bool:
@@ -155,6 +178,7 @@ async def give_help(message: types.Message):
                         f'/follow - подписаться на уведомления\n'
                         f'/unfollow - отписаться от уведомлений\n'
                         f'/weather - узнать погоду\n'
+                        f'/add_bd - добавить напоминание о дне рождения\n'
                         f'/help - узнать доступные команды\n')
 
 
@@ -241,6 +265,66 @@ async def process_name(message: types.Message, state: FSMContext):
     else:
         await message.reply(
             'Очень хорошо, что вы передумали!', reply_markup=markup)
+        await state.finish()
+
+
+@dp.message_handler(commands='add_bd')
+async def follow(message: types.Message):
+    """Функция реакции на команду /add_bd."""
+    await BirthdayRemind.start.set()
+    await message.reply(
+        text='Желаете добавить напоминание о дне рождения?\n'
+             'Для отмены напиши: "/cancel"',
+        reply_markup=make_row_keyboard(['Да', 'Нет'])
+    )
+
+
+@dp.message_handler(state=BirthdayRemind.start)
+async def process_name(message: types.Message, state: FSMContext):
+    """Функция машины состаяния BirthdayRemind: start"""
+    markup = types.ReplyKeyboardRemove()
+    if message.text == 'Да':
+        await message.reply(
+            'Введите, пожалуйста, имя именинника!', reply_markup=markup)
+        await BirthdayRemind.name.set()
+    else:
+        await message.reply(
+            'Хорошо, я, Вас, понял!\nНапиши /help для дальнейших действий',
+            reply_markup=markup
+        )
+        await state.finish()
+
+
+@dp.message_handler(state=BirthdayRemind.name)
+async def process_name(message: types.Message, state: FSMContext):
+    """Функция машины состаяния BirthdayRemind: name"""
+    await state.update_data(name=message.text)
+    await message.reply(
+        'Введите, пожалуйста, дату рождения именинника!\n'
+        'в формате гггг-мм-дд')
+    await BirthdayRemind.date.set()
+
+
+@dp.message_handler(state=BirthdayRemind.date)
+async def process_name(message: types.Message, state: FSMContext):
+    """Функция машины состаяния BirthdayRemind: date"""
+    try:
+        await message.reply(f'{validate_date(message.text)}')
+    except Exception as ex:
+        await message.reply(f'{ex}')
+        await message.reply(
+            'Введите, пожалуйста, дату рождения именинника '
+            'в правильном формате!\n'
+            'в формате гггг-мм-дд'
+        )
+        await BirthdayRemind.date.set()
+    else:
+        await state.update_data(date=message.text)
+        await state.update_data(owner=get_id(message.text))
+        await message.reply(
+            f'{await state.get_data()}'
+        )
+        await message.reply(f'')
         await state.finish()
 
 
