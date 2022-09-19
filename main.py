@@ -16,7 +16,9 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 
-from api_requests import get_weather, api_register_follower, api_unfollow
+from api_requests import (
+    get_weather, api_register_follower, api_unfollow, test_api
+)
 from config import EMODJI_DICTIONARY
 from constants import ROBOFACE, API_URL, CRYFACE
 
@@ -31,7 +33,7 @@ dp = Dispatcher(bot, storage=storage)
 login = os.getenv('ADMIN_LOGIN')
 password = os.getenv('ADMIN_PASSWORD')
 OPEN_WEATHER_TOKEN = os.getenv('OPEN_WEATHER_TOKEN')
-BOTS_COMMAND = ['/start', '/weather', '/follow', '/unfollow', '/help']
+BOTS_COMMAND = ['/start', '/weather', '/follow', '/unfollow', '/help', '/test']
 
 
 @dp.message_handler(lambda message: message.text not in BOTS_COMMAND)
@@ -114,6 +116,13 @@ def get_token_and_start_data():
 bot_access_key, start_date_key = get_token_and_start_data()
 
 
+@dp.message_handler(commands='test')
+async def get_greetings(message: types.Message):
+    """Функция реакции на команду /test."""
+    response = test_api(bot_access_key)
+    await message.reply(f'{response.json()}')
+
+
 def check_tokens() -> bool:
     """проверяем доступность переменных окружения."""
     return all([BOT_TOKEN])
@@ -135,17 +144,18 @@ async def get_greetings(message: types.Message):
     await message.reply(f'{ROBOFACE} Привет, {message.from_user.full_name}, '
                         f'меня зовут {me.full_name}, '
                         f'Зарегистрируйся и я смогу напоминать тебе '
-                        f'о различных собитиях! =)')
+                        f'о различных собитиях! =)\n'
+                        f'Чтобы узнать доступные команды напиши /help')
 
 
 @dp.message_handler(commands='help')
 async def give_help(message: types.Message):
     """Функция реакции на команду /help."""
-    me = await bot.get_me()
     await message.reply(f'Значится так, я умею в следующие команды:\n'
                         f'/follow - подписаться на уведомления\n'
                         f'/unfollow - отписаться от уведомлений\n'
-                        f'/weather - узнать погоду')
+                        f'/weather - узнать погоду\n'
+                        f'/help - узнать доступные команды\n')
 
 
 @dp.message_handler(state='*', commands='cancel')

@@ -41,3 +41,11 @@ def api_unfollow(username, token):
             'Вас нет в подписках!'
         )
     return answer
+
+
+def test_api(token):
+    url = f'{API_URL}followers/'
+    headers = {"Authorization": "Bearer " + token}
+    response = requests.get(url=url, headers=headers)
+    answer = {'code': response.status_code}
+    return response
