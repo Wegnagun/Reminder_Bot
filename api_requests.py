@@ -33,7 +33,6 @@ def api_register_follower(username, token):
 def api_unfollow(username, token):
     url = f'{API_URL}followers/{username}'
     headers = {"Authorization": "Bearer " + token}
-    data = {"username": username}
     response = requests.delete(url=url, headers=headers)
     answer = {'code': response.status_code}
     if response.status_code == 404:
@@ -43,9 +42,17 @@ def api_unfollow(username, token):
     return answer
 
 
-def test_api(token):
+def get_followers(token):
     url = f'{API_URL}followers/'
     headers = {"Authorization": "Bearer " + token}
     response = requests.get(url=url, headers=headers)
-    answer = {'code': response.status_code}
     return response
+
+
+def add_birthday(token, name, date, owner_id):
+    url = f'{API_URL}birthdays/'
+    headers = {"Authorization": "Bearer " + token}
+    data = {"name": name, "date": date, "owner": owner_id}
+    response = requests.post(url=url, data=data, headers=headers)
+    answer = {'code': response.status_code, 'message': response.json()}
+    return answer

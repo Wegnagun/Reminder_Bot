@@ -17,7 +17,8 @@ from aiogram.utils import executor
 from dotenv import load_dotenv
 
 from api_requests import (
-    get_weather, api_register_follower, api_unfollow, test_api
+    get_weather, api_register_follower, api_unfollow, get_followers,
+    add_birthday
 )
 from config import EMODJI_DICTIONARY
 from constants import ROBOFACE, API_URL, CRYFACE
@@ -63,7 +64,6 @@ class BirthdayRemind(StatesGroup):
     start = State()
     name = State()
     date = State()
-    owner = State()
 
 
 def validate_date(date_text):
@@ -135,15 +135,14 @@ def get_token_and_start_data():
 bot_access_key, start_date_key = get_token_and_start_data()
 
 
-async def get_id(message: types.Message):
-    """Функция реакции на команду /test."""
-    response = test_api(bot_access_key)
-    username = message.from_user.username
+def get_id(username, bot_access_key):
+    """Получаем айдишник пользователя."""
+    response = get_followers(bot_access_key)
     id = None
     for elem in response.json():
         if elem.get('username') == username:
             id = elem.get('id')
-    await message.reply(f'{id}')
+    return id
 
 
 def check_tokens() -> bool:
@@ -309,7 +308,7 @@ async def process_name(message: types.Message, state: FSMContext):
 async def process_name(message: types.Message, state: FSMContext):
     """Функция машины состаяния BirthdayRemind: date"""
     try:
-        await message.reply(f'{validate_date(message.text)}')
+        validate_date(message.text)
     except Exception as ex:
         await message.reply(f'{ex}')
         await message.reply(
@@ -320,12 +319,21 @@ async def process_name(message: types.Message, state: FSMContext):
         await BirthdayRemind.date.set()
     else:
         await state.update_data(date=message.text)
-        await state.update_data(owner=get_id(message.text))
-        await message.reply(
-            f'{await state.get_data()}'
-        )
-        await message.reply(f'')
-        await state.finish()
+        data = await state.get_data()
+        name = data["name"]
+        date = data["date"]
+        owner_id = get_id(message.from_user.username, bot_access_key)
+        try:
+            add_birthday(bot_access_key, name, date, owner_id)
+        except Exception as ex:
+            await message.reply(f'Что-то пошло не так(... {ex}\n'
+                                f'попробуйте заново')
+            await state.finish()
+        else:
+            await message.reply(
+                f'Напоминание о дне рождения "{name}" добавлено!'
+            )
+            await state.finish()
 
 
 if __name__ == '__main__':
